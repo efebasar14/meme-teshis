@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meme Kanseri Ön Teşhis</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">🏥</div>
+            <h1>Meme Kanseri Ön Teşhis</h1>
+            <p>Yapay Zeka Destekli Analiz</p>
+        </header>
+
+        <main class="main-content">
+            <!-- Upload Section -->
+            <div class="upload-section">
+                <button id="uploadBtn" class="upload-btn">
+                    <span class="icon">📷</span>
+                    Fotoğraf Yükle
+                </button>
+                <input type="file" id="imageInput" accept="image/*">
+            </div>
+
+            <!-- Image Preview -->
+            <div id="imagePreview" class="image-preview">
+                <div class="preview-container">
+                    <img id="previewImage" src="" alt="Preview">
+                    <button id="removeImage" class="remove-image">✕</button>
+                </div>
+                <button id="analyzeBtn" class="analyze-btn" disabled>
+                    <span class="icon">🔍</span>
+                    Analiz Et
+                </button>
+            </div>
+
+            <!-- Loading -->
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>Fotoğraf analiz ediliyor...</p>
+            </div>
+
+            <!-- Result Section -->
+            <div id="result" class="result"></div>
+
+            <!-- New Analysis Button -->
+            <button id="newAnalysisBtn" class="new-analysis-btn" style="display: none;">
+                <span class="icon">🔄</span>
+                Yeni Analiz
+            </button>
+
+            <!-- Warning -->
+            <div class="warning-box">
+                <p>⚠️ Bu uygulama yalnızca ön taram amaçlıdır. Kesin teşhis için lütfen bir uzmana danışın.</p>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>© 2024 Meme Kanseri Ön Teşhis Uygulaması</p>
+            <p>Bu bir prototip uygulamadır.</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
