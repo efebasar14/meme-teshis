@@ -38,7 +38,6 @@ body {
     overflow: hidden;
 }
 
-/* Header */
 .header {
     background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
     color: var(--white);
@@ -62,12 +61,10 @@ body {
     margin-bottom: 10px;
 }
 
-/* Main Content */
 .main-content {
     padding: 30px 20px;
 }
 
-/* Upload Section */
 .upload-section {
     text-align: center;
 }
@@ -107,7 +104,6 @@ body {
     display: none;
 }
 
-/* Image Preview */
 .image-preview {
     margin: 20px 0;
     display: none;
@@ -178,7 +174,6 @@ body {
     box-shadow: none;
 }
 
-/* Loading */
 .loading {
     display: none;
     text-align: center;
@@ -208,7 +203,6 @@ body {
     font-size: 16px;
 }
 
-/* Result Section */
 .result {
     display: none;
     margin-top: 25px;
@@ -278,7 +272,52 @@ body {
     color: var(--dark);
 }
 
-/* Doctor List */
+.symptoms-list {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.symptoms-list h4 {
+    color: var(--dark);
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+}
+
+.symptom-item {
+    background: var(--white);
+    padding: 12px 15px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    border-left: 4px solid var(--warning);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.symptom-item strong {
+    color: #e65100;
+    font-size: 14px;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.symptom-item p {
+    color: var(--gray);
+    font-size: 12px;
+    line-height: 1.4;
+    margin: 0;
+}
+
+.result.high .symptom-item {
+    border-left-color: var(--danger);
+}
+
+.result.high .symptom-item strong {
+    color: #c62828;
+}
+
 .doctor-list {
     margin-top: 20px;
     padding-top: 20px;
@@ -334,7 +373,6 @@ body {
     color: var(--primary-dark);
 }
 
-/* New Analysis Button */
 .new-analysis-btn {
     display: inline-flex;
     align-items: center;
@@ -358,7 +396,6 @@ body {
     transform: translateY(-2px);
 }
 
-/* Warning Box */
 .warning-box {
     background: #fff3e0;
     border-left: 4px solid var(--warning);
@@ -373,7 +410,6 @@ body {
     line-height: 1.5;
 }
 
-/* Footer */
 .footer {
     background: var(--light);
     padding: 20px;
@@ -386,7 +422,6 @@ body {
     font-size: 12px;
 }
 
-/* Responsive */
 @media (max-width: 480px) {
     body {
         padding: 10px;
