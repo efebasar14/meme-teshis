@@ -130,6 +130,129 @@ async function analyzeImage() {
 
 // ==================== GÖRÜNTÜ İŞLEME FONKSİYONLARI ====================
 
+// Normalizasyon fonksiyonu - piksel değerlerini 0-1 arasına normalize et
+function normalizeImage(data) {
+    const normalized = new Float32Array(data.length / 4);
+    for (let i = 0; i < data.length; i += 4) {
+        // RGB değerlerini 0-1 arasına normalize et
+        normalized[i / 4] = (data[i] + data[i + 1] + data[i + 2]) / (3 * 255);
+    }
+    return normalized;
+}
+
+// Griye çevirme ve normalizasyon
+function convertToGrayscaleNormalized(data) {
+    const gray = new Float32Array(data.length / 4);
+    for (let i = 0; i < data.length; i += 4) {
+        // Weighted grayscale conversion (YUV standard)
+        gray[i / 4] = (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]) / 255;
+    }
+    return gray;
+}
+
+// Histogram eşitleme - kontrast iyileştirme
+function histogramEqualization(gray, width, height) {
+    const equalized = new Float32Array(gray.length);
+    const histogram = new Array(256).fill(0);
+    
+    // Histogram oluştur
+    for (let i = 0; i < gray.length; i++) {
+        const val = Math.floor(gray[i] * 255);
+        histogram[val]++;
+    }
+    
+    // Kümülatif dağılım
+    const cdf = new Array(256);
+    cdf[0] = histogram[0];
+    for (let i = 1; i < 256; i++) {
+        cdf[i] = cdf[i - 1] + histogram[i];
+    }
+    
+    // Normalize et
+    const cdfMin = cdf.find(v => v > 0);
+    const totalPixels = width * height;
+    
+    for (let i = 0; i < gray.length; i++) {
+        const val = Math.floor(gray[i] * 255);
+        equalized[i] = ((cdf[val] - cdfMin) / (totalPixels - cdfMin)) || 0;
+    }
+    
+    return equalized;
+}
+
+// Gürültü azaltma (Gaussian blur)
+function gaussianBlur(gray, width, height) {
+    const blurred = new Float32Array(gray.length);
+    const kernel = [
+        [1/16, 2/16, 1/16],
+        [2/16, 4/16, 2/16],
+        [1/16, 2/16, 1/16]
+    ];
+    
+    for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+            let sum = 0;
+            for (let ky = -1; ky <= 1; ky++) {
+                for (let kx = -1; kx <= 1; kx++) {
+                    const idx = (y + ky) * width + (x + kx);
+                    sum += gray[idx] * kernel[ky + 1][kx + 1];
+                }
+            }
+            blurred[y * width + x] = sum;
+        }
+    }
+    
+    return blurred;
+}
+
+// Görüntü tipi tespit (tek meme veya çift meme)
+function detectImageType(data, width, height) {
+    const gray = convertToGrayscaleNormalized(data);
+    
+    // Sol ve sağ yarıların parlaklık varyansını kontrol et
+    const leftHalf = Math.floor(width / 2);
+    let leftVar = 0, rightVar = 0;
+    let leftMean = 0, rightMean = 0;
+    let leftPixels = 0, rightPixels = 0;
+    
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < leftHalf; x++) {
+            leftMean += gray[y * width + x];
+            leftPixels++;
+        }
+        for (let x = leftHalf; x < width; x++) {
+            rightMean += gray[y * width + x];
+            rightPixels++;
+        }
+    }
+    
+    leftMean /= leftPixels;
+    rightMean /= rightPixels;
+    
+    // Varyans hesapla
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < leftHalf; x++) {
+            leftVar += Math.pow(gray[y * width + x] - leftMean, 2);
+        }
+        for (let x = leftHalf; x < width; x++) {
+            rightVar += Math.pow(gray[y * width + x] - rightMean, 2);
+        }
+    }
+    
+    leftVar = Math.sqrt(leftVar / leftPixels);
+    rightVar = Math.sqrt(rightVar / rightPixels);
+    
+    // Eğer iki yarı çok farklıysa, tek meme görüntüsü olabilir
+    const varianceRatio = Math.abs(leftVar - rightVar) / Math.max(leftVar, rightVar);
+    
+    return {
+        isSingleBreast: varianceRatio > 0.5,
+        leftMean,
+        rightMean,
+        varianceRatio
+    };
+}
+
 // Ana görüntü işleme fonksiyonu
 async function processImage(imageSrc) {
     return new Promise((resolve) => {
@@ -164,36 +287,45 @@ async function processImage(imageSrc) {
             const imageData = ctx.getImageData(0, 0, width, height);
             const data = imageData.data;
             
-            // Run all detection algorithms
+            // ÖN İŞLEME: Normalize edilmiş gri tonlamalı görüntü
+            const grayNormalized = convertToGrayscaleNormalized(data);
+            const grayBlurred = gaussianBlur(grayNormalized, width, height);
+            const grayEnhanced = histogramEqualization(grayBlurred, width, height);
+            
+            // Görüntü tipi tespit (tek meme veya çift meme)
+            const imageType = detectImageType(data, width, height);
+            console.log('Görüntü Tipi:', imageType.isSingleBreast ? 'Tek Meme' : 'Çift Meme');
+            
+            // Run all detection algorithms with normalized data
             const symptoms = [];
             
             // 1. Kitle (Mass) Detection - Edge/Blob detection
-            if (detectMass(data, width, height)) {
+            if (detectMass(data, width, height, grayEnhanced)) {
                 symptoms.push('kitle');
             }
             
             // 2. Deri Değişiklikleri - Texture analysis
-            if (detectSkinChanges(data, width, height)) {
+            if (detectSkinChanges(data, width, height, grayEnhanced)) {
                 symptoms.push('deri');
             }
             
             // 3. Meme Başı Değişiklikleri - Central region analysis
-            if (detectNippleChanges(data, width, height)) {
+            if (detectNippleChanges(data, width, height, grayEnhanced)) {
                 symptoms.push('nipples');
             }
             
             // 4. Anormal Akıntı - Color anomaly in nipple area
-            if (detectDischarge(data, width, height)) {
+            if (detectDischarge(data, width, height, grayEnhanced)) {
                 symptoms.push('akinti');
             }
             
             // 5. Asimetri - Left-right comparison
-            if (detectAsymmetry(data, width, height)) {
+            if (detectAsymmetry(data, width, height, grayEnhanced)) {
                 symptoms.push('sekil');
             }
             
             // 6. Koltuk Altı Şişliği - Edge detection in corners
-            if (detectAxillarySwelling(data, width, height)) {
+            if (detectAxillarySwelling(data, width, height, grayEnhanced)) {
                 symptoms.push('koltuk');
             }
             
@@ -203,16 +335,12 @@ async function processImage(imageSrc) {
     });
 }
 
-// 1. Kitle (Mass) Tespiti - Sobel Edge Detection
-function detectMass(data, width, height) {
-    // Convert to grayscale
-    const gray = new Float32Array(width * height);
-    for (let i = 0; i < data.length; i += 4) {
-        const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-        gray[i / 4] = avg;
-    }
+// 1. Kitle (Mass) Tespiti - Sobel Edge Detection with NORMALIZED thresholds
+function detectMass(data, width, height, gray = null) {
+    // Use pre-processed gray if provided, otherwise normalize
+    const processedGray = gray || convertToGrayscaleNormalized(data);
     
-    // Apply Sobel edge detection
+    // Apply Sobel edge detection with normalized values (0-1 scale)
     let edgeStrength = 0;
     let edgePixels = 0;
     
@@ -220,55 +348,61 @@ function detectMass(data, width, height) {
         for (let x = 1; x < width - 1; x++) {
             const idx = y * width + x;
             
-            // Sobel X
+            // Sobel X - normalized
             const gx = 
-                -gray[idx - width - 1] + gray[idx - width + 1] +
-                -2 * gray[idx - 1] + 2 * gray[idx + 1] +
-                -gray[idx + width - 1] + gray[idx + width + 1];
+                -processedGray[idx - width - 1] + processedGray[idx - width + 1] +
+                -2 * processedGray[idx - 1] + 2 * processedGray[idx + 1] +
+                -processedGray[idx + width - 1] + processedGray[idx + width + 1];
             
-            // Sobel Y
+            // Sobel Y - normalized
             const gy = 
-                -gray[idx - width - 1] - 2 * gray[idx - width] - gray[idx - width + 1] +
-                gray[idx + width - 1] + 2 * gray[idx + width] + gray[idx + width + 1];
+                -processedGray[idx - width - 1] - 2 * processedGray[idx - width] - processedGray[idx - width + 1] +
+                processedGray[idx + width - 1] + 2 * processedGray[idx + width] + processedGray[idx + width + 1];
             
             const magnitude = Math.sqrt(gx * gx + gy * gy);
             
-            if (magnitude > 50) {
+            // Düzeltilmiş threshold: 0-1 arası normalize değerler için
+            // 0.2 yerine daha yüksek eşik değeri (normal görüntülerde edge düşük)
+            if (magnitude > 0.3) {
                 edgeStrength += magnitude;
                 edgePixels++;
             }
         }
     }
     
-    // High edge density indicates potential mass
+    // Edge yoğunluğu hesapla
     const avgEdge = edgePixels > 0 ? edgeStrength / edgePixels : 0;
-    return avgEdge > 30;
+    // Düzeltilmiş threshold: 0.1 yerine daha yüksek (yanlış pozitifleri azaltmak için)
+    return avgEdge > 0.15;
 }
 
-// 2. Deri Değişiklikleri Tespiti - Texture Analysis
-function detectSkinChanges(data, width, height) {
+// 2. Deri Değişiklikleri Tespiti - Texture Analysis with NORMALIZED thresholds
+function detectSkinChanges(data, width, height, gray = null) {
+    const processedGray = gray || convertToGrayscaleNormalized(data);
     let redAreas = 0;
     let totalPixels = width * height;
     
     // Check for redness/inflammation (portakal kabuğu efekti)
+    // Normalized: R > 0.6, R > G + 0.12, R > B + 0.12
     for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
+        const r = data[i] / 255;
+        const g = data[i + 1] / 255;
+        const b = data[i + 2] / 255;
         
-        // Detect redness (inflammation indicator)
-        if (r > g + 30 && r > b + 30 && r > 150) {
+        // Detect redness (inflammation indicator) - normalized values
+        if (r > 0.6 && r > g + 0.12 && r > b + 0.12) {
             redAreas++;
         }
     }
     
-    // If more than 5% redness,可能有皮肤变化
+    // Düzeltilmiş threshold: %8'den fazla kızarıklık varsa
     const redRatio = redAreas / totalPixels;
-    return redRatio > 0.05;
+    return redRatio > 0.08;
 }
 
-// 3. Meme Başı Değişiklikleri - Central region analysis
-function detectNippleChanges(data, width, height) {
+// 3. Meme Başı Değişiklikleri - Central region analysis with NORMALIZED
+function detectNippleChanges(data, width, height, gray = null) {
+    const processedGray = gray || convertToGrayscaleNormalized(data);
     const centerX = width / 2;
     const centerY = height / 2;
     const nippleRadius = Math.min(width, height) * 0.1;
@@ -279,14 +413,15 @@ function detectNippleChanges(data, width, height) {
     // Analyze center region (nipple area)
     for (let y = centerY - nippleRadius; y < centerY + nippleRadius; y++) {
         for (let x = centerX - nippleRadius; x < centerX + nippleRadius; x++) {
-            const idx = (Math.floor(y) * width + Math.floor(x)) * 4;
-            const brightness = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
-            nippleBrightness += brightness;
-            pixelCount++;
+            const idx = Math.floor(y) * width + Math.floor(x);
+            if (idx >= 0 && idx < processedGray.length) {
+                nippleBrightness += processedGray[idx];
+                pixelCount++;
+            }
         }
     }
     
-    const avgBrightness = nippleBrightness / pixelCount;
+    const avgBrightness = pixelCount > 0 ? nippleBrightness / pixelCount : 0;
     
     // Analyze surrounding tissue
     let surroundBrightness = 0;
@@ -296,21 +431,25 @@ function detectNippleChanges(data, width, height) {
         for (let x = centerX - nippleRadius * 3; x < centerX + nippleRadius * 3; x++) {
             const dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
             if (dist > nippleRadius * 1.5 && dist < nippleRadius * 3) {
-                const idx = (Math.floor(y) * width + Math.floor(x)) * 4;
-                surroundBrightness += (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
-                surroundCount++;
+                const idx = Math.floor(y) * width + Math.floor(x);
+                if (idx >= 0 && idx < processedGray.length) {
+                    surroundBrightness += processedGray[idx];
+                    surroundCount++;
+                }
             }
         }
     }
     
-    const avgSurround = surroundBrightness / surroundCount;
+    const avgSurround = surroundCount > 0 ? surroundBrightness / surroundCount : 0;
     
-    // Abnormal brightness difference may indicate nipple changes
-    return Math.abs(avgBrightness - avgSurround) > 30;
+    // Düzeltilmiş threshold: normalize edilmiş değerler için
+    // 0.12 yerine daha makul bir eşik değeri
+    return Math.abs(avgBrightness - avgSurround) > 0.15;
 }
 
-// 4. Anormal Akıntı - Color anomaly detection
-function detectDischarge(data, width, height) {
+// 4. Anormal Akıntı - Color anomaly detection with NORMALIZED
+function detectDischarge(data, width, height, gray = null) {
+    const processedGray = gray || convertToGrayscaleNormalized(data);
     const centerX = width / 2;
     const centerY = height / 2;
     
@@ -319,38 +458,45 @@ function detectDischarge(data, width, height) {
     
     for (let y = centerY - 20; y < centerY + 20; y++) {
         for (let x = centerX - 20; x < centerX + 20; x++) {
-            const idx = (Math.floor(y) * width + Math.floor(x)) * 4;
-            const r = data[idx];
-            const g = data[idx + 1];
-            const b = data[idx + 2];
-            
-            // Check for discharge-like colors (pinkish, reddish, yellowish)
-            if ((r > 180 && g > 100 && g < 200 && b > 100 && b < 180) || // Pinkish
-                (r > 200 && g < 100 && b < 100) || // Red/Bloody
-                (r > 200 && g > 200 && g < 255 && b < 100)) { // Yellowish
-                abnormalColor++;
+            if (x >= 0 && x < width && y >= 0 && y < height) {
+                const idx = (Math.floor(y) * width + Math.floor(x)) * 4;
+                const r = data[idx] / 255;
+                const g = data[idx + 1] / 255;
+                const b = data[idx + 2] / 255;
+                
+                // Normalized renk aralıkları
+                // Pinkish: R>0.7, G>0.4,G<0.8, B>0.4,B<0.7
+                // Red/Bloody: R>0.8, G<0.4, B<0.4
+                // Yellowish: R>0.8, G>0.8,G<1.0, B<0.4
+                if ((r > 0.7 && g > 0.4 && g < 0.8 && b > 0.4 && b < 0.7) ||
+                    (r > 0.8 && g < 0.4 && b < 0.4) ||
+                    (r > 0.8 && g > 0.8 && g < 1.0 && b < 0.4)) {
+                    abnormalColor++;
+                }
             }
         }
     }
     
-    return abnormalColor > 20;
+    // Düzeltilmiş threshold
+    return abnormalColor > 30;
 }
 
-// 5. Asimetri Tespiti - Left-Right Comparison
-function detectAsymmetry(data, width, height) {
+// 5. Asimetri Tespiti - Left-Right Comparison with NORMALIZED
+function detectAsymmetry(data, width, height, gray = null) {
+    const processedGray = gray || convertToGrayscaleNormalized(data);
     const leftHalf = Math.floor(width / 2);
     let leftAvg = 0, rightAvg = 0;
     let leftPixels = 0, rightPixels = 0;
     
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < leftHalf; x++) {
-            const idx = (y * width + x) * 4;
-            leftAvg += (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+            const idx = y * width + x;
+            leftAvg += processedGray[idx];
             leftPixels++;
         }
         for (let x = leftHalf; x < width; x++) {
-            const idx = (y * width + x) * 4;
-            rightAvg += (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+            const idx = y * width + x;
+            rightAvg += processedGray[idx];
             rightPixels++;
         }
     }
@@ -358,33 +504,30 @@ function detectAsymmetry(data, width, height) {
     leftAvg /= leftPixels;
     rightAvg /= rightPixels;
     
-    // Significant difference indicates asymmetry
+    // Düzeltilmiş threshold: normalize değerler için
+    // 0.1 yerine %15'lik fark (0.15)
     const diff = Math.abs(leftAvg - rightAvg);
-    return diff > 25;
+    return diff > 0.15;
 }
 
-// 6. Koltuk Altı Şişliği - Corner edge detection
-function detectAxillarySwelling(data, width, height) {
+// 6. Koltuk Altı Şişliği - Corner edge detection with NORMALIZED
+function detectAxillarySwelling(data, width, height, gray = null) {
+    const processedGray = gray || convertToGrayscaleNormalized(data);
     const cornerSize = Math.floor(Math.min(width, height) * 0.2);
     let leftCornerEdges = 0;
     let rightCornerEdges = 0;
-    
-    // Convert to grayscale
-    const gray = new Float32Array(width * height);
-    for (let i = 0; i < data.length; i += 4) {
-        gray[i / 4] = (data[i] + data[i + 1] + data[i + 2]) / 3;
-    }
     
     // Check left corner (axillary region)
     for (let y = 0; y < cornerSize; y++) {
         for (let x = 0; x < cornerSize; x++) {
             if (x > 0 && x < width - 1 && y > 0 && y < height - 1) {
                 const idx = y * width + x;
-                const diff = Math.abs(gray[idx] - gray[idx - 1]) + 
-                            Math.abs(gray[idx] - gray[idx + 1]) +
-                            Math.abs(gray[idx] - gray[idx - width]) +
-                            Math.abs(gray[idx] - gray[idx + width]);
-                if (diff > 30) leftCornerEdges++;
+                const diff = Math.abs(processedGray[idx] - processedGray[idx - 1]) + 
+                            Math.abs(processedGray[idx] - processedGray[idx + 1]) +
+                            Math.abs(processedGray[idx] - processedGray[idx - width]) +
+                            Math.abs(processedGray[idx] - processedGray[idx + width]);
+                // Düzeltilmiş threshold: normalize değerler için
+                if (diff > 0.15) leftCornerEdges++;
             }
         }
     }
@@ -394,17 +537,19 @@ function detectAxillarySwelling(data, width, height) {
         for (let x = width - cornerSize; x < width; x++) {
             if (x > 0 && x < width - 1 && y > 0 && y < height - 1) {
                 const idx = y * width + x;
-                const diff = Math.abs(gray[idx] - gray[idx - 1]) + 
-                            Math.abs(gray[idx] - gray[idx + 1]) +
-                            Math.abs(gray[idx] - gray[idx - width]) +
-                            Math.abs(gray[idx] - gray[idx + width]);
-                if (diff > 30) rightCornerEdges++;
+                const diff = Math.abs(processedGray[idx] - processedGray[idx - 1]) + 
+                            Math.abs(processedGray[idx] - processedGray[idx + 1]) +
+                            Math.abs(processedGray[idx] - processedGray[idx - width]) +
+                            Math.abs(processedGray[idx] - processedGray[idx + width]);
+                if (diff > 0.15) rightCornerEdges++;
             }
         }
     }
     
-    // Significant edges in corners may indicate axillary swelling
-    return leftCornerEdges > 50 || rightCornerEdges > 50;
+    // Düzeltilmiş threshold: daha az yanlış pozitif için
+    const totalCornerPixels = cornerSize * cornerSize * 2;
+    return (leftCornerEdges / totalCornerPixels > 0.05) || 
+           (rightCornerEdges / totalCornerPixels > 0.05);
 }
 
 // ==================== SONUÇ HESAPLAMA ====================
