@@ -1,3 +1,4 @@
 ﻿# meme-teshis
-https://github.com/efebasar14/meme-teshis/settings/pages#:~:text=https%3A//efebasar14.github.io/meme%2Dteshis/
+https://efebasar14.github.io/meme-teshis/
 Dikkat! sadece sade meme görüntüsüyle çalışır.
+
