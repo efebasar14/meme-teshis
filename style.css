@@ -435,3 +435,30 @@ body {
         padding: 20px 15px;
     }
 }
+.info-box {
+    background: #fce4ec;
+    border-left: 4px solid var(--primary);
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+
+.info-box h3 {
+    font-size: 16px;
+    color: var(--dark);
+    margin-bottom: 12px;
+}
+
+.criteria-list {
+    display: grid;
+    gap: 8px;
+}
+
+.criteria-item {
+    background: var(--white);
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--dark);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
