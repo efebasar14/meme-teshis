@@ -3,19 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meme Kanseri Ön Teşhis</title>
+    <title>Meme Görüntüsü Ön Değerlendirme</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <header class="header">
             <div class="logo">🏥</div>
-            <h1>Meme Kanseri Ön Teşhis</h1>
-            <p>Yapay Zeka Destekli Analiz</p>
+            <h1>Meme Görüntüsü Ön Değerlendirme</h1>
+            <p>Görsel Bulgulara Dayalı Ön Tarama Sistemi</p>
         </header>
 
         <main class="main-content">
-            <!-- Upload Section -->
+
+            <div class="info-box">
+                <h3>Değerlendirilecek Kriterler</h3>
+                <div class="criteria-list">
+                    <div class="criteria-item">🔎 Cilt değişikliği var mı?</div>
+                    <div class="criteria-item">⚖️ Asimetri belirgin mi?</div>
+                    <div class="criteria-item">🎯 Meme ucu retraksiyonu var mı?</div>
+                    <div class="criteria-item">📷 Görüntü kalitesi yeterli mi?</div>
+                </div>
+            </div>
+
             <div class="upload-section">
                 <button id="uploadBtn" class="upload-btn">
                     <span class="icon">📷</span>
@@ -24,41 +34,41 @@
                 <input type="file" id="imageInput" accept="image/*">
             </div>
 
-            <!-- Image Preview -->
             <div id="imagePreview" class="image-preview">
                 <div class="preview-container">
-                    <img id="previewImage" src="" alt="Preview">
+                    <img id="previewImage" src="" alt="Yüklenen görüntü ön izlemesi">
                     <button id="removeImage" class="remove-image">✕</button>
                 </div>
+
                 <button id="analyzeBtn" class="analyze-btn" disabled>
                     <span class="icon">🔍</span>
-                    Analiz Et
+                    Görsel Bulguları Analiz Et
                 </button>
             </div>
 
-            <!-- Loading -->
             <div id="loading" class="loading">
                 <div class="spinner"></div>
-                <p>Fotoğraf analiz ediliyor...</p>
+                <p>Görüntü kalitesi ve görsel bulgular analiz ediliyor...</p>
             </div>
 
-            <!-- Result Section -->
             <div id="result" class="result"></div>
 
-            <!-- New Analysis Button -->
             <button id="newAnalysisBtn" class="new-analysis-btn" style="display: none;">
                 <span class="icon">🔄</span>
                 Yeni Analiz
             </button>
 
-            <!-- Warning -->
             <div class="warning-box">
-                <p>⚠️ Bu uygulama yalnızca ön taram amaçlıdır. Kesin teşhis için lütfen bir uzmana danışın.</p>
+                <p>
+                    ⚠️ Bu uygulama yalnızca görsel ön değerlendirme amacı taşır.
+                    Kanser tanısı koymaz. Kesin değerlendirme için doktor muayenesi,
+                    ultrason, mamografi veya gerekli tıbbi tetkikler yapılmalıdır.
+                </p>
             </div>
         </main>
 
         <footer class="footer">
-            <p>© 2024 Meme Kanseri Ön Teşhis Uygulaması</p>
+            <p>© 2024 Meme Görüntüsü Ön Değerlendirme Uygulaması</p>
             <p>Bu bir prototip uygulamadır.</p>
         </footer>
     </div>
